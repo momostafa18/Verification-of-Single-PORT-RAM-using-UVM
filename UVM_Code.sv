@@ -13,12 +13,7 @@ interface intf1;
   bit DataVLD;
   always  #5 CLK = ~CLK;  
 endinterface
-
-
-
-
-
-
+	
 /*************************** Package *****************************************************/
 package pack1;
 
@@ -44,12 +39,14 @@ class Mo_sequence_item extends uvm_sequence_item;
         //----------- Define Variables ----------//
   rand bit [31:0]Data_in;
   randc bit [3:0]Address;
+  randc bit [3:0]Address_2;
    bit WrEn;
    bit RdEn;
    bit CLK;
    bit RST;
    bit[31:0]Data_out;
    bit DataVLD ;
+   bit RdEN_2;
   
 endclass
 
@@ -92,10 +89,12 @@ class Mo_sequence extends uvm_sequence #(Mo_sequence_item);
     STATUS = seq_item_inst.randomize(Address,Data_in);
     $display("The randomization state is %d",STATUS);
 	 finish_item(seq_item_inst);
-	 end 	 
+	 end 	
+     seq_item_inst.Address.rand_mode(0); 
 	for(i=0;i<16;i++)
 	 begin
 	 start_item(seq_item_inst);
+	 seq_item_inst.Address.rand_mode(1); 
 	 seq_item_inst.WrEn = 0;
 	 seq_item_inst.RdEn = 1;
 	 seq_item_inst.RST = 1;
@@ -218,6 +217,9 @@ endfunction
          seq_item_inst.RdEn <= vif1.RdEn;
          seq_item_inst.WrEn <= vif1.WrEn;
          seq_item_inst.DataVLD <= vif1.DataVLD;
+		 seq_item_inst.Address <= vif1.Address;
+		 seq_item_inst.Address_2 <= seq_item_inst.Address;
+		 seq_item_inst.RdEN_2 <= seq_item_inst.RdEn;
          $display("From monitor %d",vif1.Data_out); 
          m_write_port.write(seq_item_inst);  
          end
@@ -329,7 +331,7 @@ class Mo_scoreboard extends uvm_scoreboard;
             //------ instansiation of my_sequence_item ------//
   Mo_sequence_item seq_item_inst;
            //--------- Temp dynamic array to hold values for the checking mechanism--///
-  int mem_model[];
+  bit [31:0] mem_model[15:0];
   
           //------------- Construction --------------//
   function new(string name = "Mo_scoreboard",uvm_component parent = null);
@@ -359,19 +361,19 @@ class Mo_scoreboard extends uvm_scoreboard;
     forever 
         begin
 		//------ Checking mechanism to check if the data is written to the memory and read rightly from the memory -------//
-	  m_tlm_fifo.get_peek_export.get(seq_item_inst);  
+	  m_tlm_fifo.get_peek_export.get(seq_item_inst); 	  
       if(seq_item_inst.WrEn  && !seq_item_inst.RdEn)
       begin
          mem_model[seq_item_inst.Address] = seq_item_inst.Data_in;
-        $display("mem_model[%p] = %p", seq_item_inst.Address,seq_item_inst.Data_in);
+        $display("mem_model[%p] = %p", seq_item_inst.Address,mem_model[seq_item_inst.Address]);
       end
       else if(!seq_item_inst.WrEn  && seq_item_inst.RdEn)
       begin
-          if(seq_item_inst.Data_out == mem_model[seq_item_inst.Address] && seq_item_inst.DataVLD)
-            $display("Data is read correctly @ address = %p , WrData = %p , RdData = %p" , seq_item_inst.Address ,mem_model[seq_item_inst.Address] ,seq_item_inst.Data_out);          
+          if(seq_item_inst.Data_out == mem_model[seq_item_inst.Address_2] && seq_item_inst.RdEN_2)
+            $display("Data is read correctly @ address = %p , WrData = %p , RdData = %p "  , seq_item_inst.Address_2,mem_model[seq_item_inst.Address_2] ,seq_item_inst.Data_out);          
           
           else
-            $display("Data is NOT read correctly @ address = %p , WrData = %p , RdData = %p" , seq_item_inst.Address ,mem_model[seq_item_inst.Address] ,seq_item_inst.Data_out);    
+            $display("Data is NOT read correctly @ address = %p , WrData = %p , RdData = %p " , seq_item_inst.Address_2 ,mem_model[seq_item_inst.Address_2] ,seq_item_inst.Data_out);    
       end
 	end
   endtask
